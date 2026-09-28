@@ -1,0 +1,265 @@
+\section{Prompt Specifications}
+
+This section provides the complete prompts used for Stage~1 screening and claim extraction, Stage~2 reconciliation, final answer generation, and external evaluation.
+
+\subsection{Stage~1 Prompt V1}
+\label{app:prompt-v1}
+
+% Insert the complete V1 Stage~1 prompt here.
+\begin{lstlisting}[style=promptstyle, caption={Prompt used in the experiment}]
+Screen one original evidence item against the question, then extract claims
+only if the evidence should be retained.
+
+Follow this order:
+1. Read the document name and complete evidence text before deciding.
+   The document name is contextual metadata. Use it to resolve the topic,
+   entity, service, or abbreviation, but do not treat the document name
+   alone as factual evidence.
+2. Retain the evidence if any part:
+   - directly answers the question;
+   - provides a condition, comparison, exception, eligibility rule,
+     required document, procedure, limitation, time constraint, alternative,
+     or scope needed for the answer;
+   - answers only one part of a multi-part question;
+   - may be needed together with another evidence item.
+3. Exclude the evidence only if it is clearly irrelevant or clearly about a
+   different entity, jurisdiction, service, action, population, or issue.
+4. If uncertain, choose "retain".
+5. If retained, extract every distinct question-relevant factual claim that
+   is explicitly stated in the evidence.
+6. Preserve conditions, shared prerequisites, alternatives, exceptions,
+   negation, quantities, time limits, and scope.
+7. Do not combine this evidence with any other evidence.
+8. Do not infer, generalise, add outside knowledge, or answer the question.
+9. Return valid JSON only.
+
+Required structure:
+{
+  "screening_decision": "retain | exclude",
+  "claims": ["string"]
+}
+
+If screening_decision is "exclude", claims must be [].
+If screening_decision is "retain", claims must contain at least one string.
+\end{lstlisting}
+
+\subsection{Stage~1 Prompt V2}
+\label{app:prompt-v2}
+
+% Insert the complete V2 Stage~1 prompt here.
+\begin{lstlisting}[style=promptstyle, caption={Prompt used in the experiment}]
+Screen one original evidence item against the question, then extract claims
+only if the evidence should be retained.
+ 
+Follow this order:
+1. Read the document name and complete evidence text before deciding.
+   The document name is contextual metadata. Use it to resolve the topic,
+   entity, service, or abbreviation, but do not treat the document name
+   alone as factual evidence.
+   - Special case: if the evidence text is short (a single clause, phrase,
+     list item, or heading) and contains no entity, topic, or service word
+     tying it to the question, but the document name names an entity,
+     country, service, drug, form, or topic that matches the question,
+     this is NOT grounds for exclusion by itself. Treat the document-name
+     match as sufficient topical grounding and proceed to rule 2; do not
+     exclude solely because the isolated text lacks its own explicit
+     anchor.
+2. Retain the evidence if any part:
+   - directly answers the question;
+   - provides a condition, comparison, exception, eligibility rule,
+     required document, procedure, limitation, time constraint, alternative,
+     or scope needed for the answer;
+   - answers only one part of a multi-part question;
+   - may be needed together with another evidence item;
+   - is a short but self-contained fact (e.g. a duration, fee, threshold,
+     deadline, or yes/no rule) that matches the topic named in the
+     question or document name, even if brief.
+3. Exclude the evidence only if it is clearly irrelevant or clearly about a
+   different entity, jurisdiction, service, action, population, or issue.
+   Brevity or the absence of an explicit named entity inside the evidence
+   text is not, by itself, a reason to exclude.
+4. If uncertain, choose "retain". When the evidence text is short or
+   fragment-like, resolve uncertainty using the document name and the
+   question's subject before defaulting to exclude.
+5. If retained, extract every distinct question-relevant factual claim that
+   is explicitly stated in the evidence.
+6. Preserve conditions, shared prerequisites, alternatives, exceptions,
+   negation, quantities, time limits, and scope.
+7. Do not combine this evidence with any other evidence.
+8. Do not infer, generalise, add outside knowledge, or answer the question.
+9. Return valid JSON only.
+ 
+Required structure:
+{
+  "screening_decision": "retain | exclude",
+  "claims": ["string"]
+}
+ 
+If screening_decision is "exclude", claims must be [].
+If screening_decision is "retain", claims must contain at least one string.
+\end{lstlisting}
+
+
+\subsection{Stage~1 Prompt V3}
+\label{app:prompt-v3}
+
+% Insert the complete V3 Stage~1 prompt here.
+\begin{lstlisting}[style=promptstyle, caption={Prompt used in the experiment}]
+Decide whether this evidence should be retained to help answer the question.
+
+Retain it if it could contribute to the answer in any way, even partially
+or only in combination with other evidence (for example: a condition,
+exception, comparison point, or one part of a multi-part question).
+Exclude it only if it is clearly about a different entity, topic, or issue.
+Return valid JSON only.
+
+Required structure:
+{
+  "screening_decision": "retain | exclude",
+  "claims": ["string"]
+}
+
+If screening_decision is "exclude", claims must be [].
+If screening_decision is "retain", claims must contain at least one string.
+\end{lstlisting}
+
+\subsection{Reconciliation Prompt}
+\label{app:prompt-reconciliation}
+
+% Insert the complete Stage~2 reconciliation prompt here.
+\begin{lstlisting}[style=promptstyle, caption={Prompt used in the experiment}]
+Reconcile the supplied question-relevant candidate claims.
+
+Rules:
+1. Use only the supplied candidate claims.
+2. Do not re-screen original evidence; Stage 1 has already done that.
+3. Merge duplicate claims without adding information.
+4. Integrate complementary claims only when they jointly answer the question.
+5. Preserve conditions, shared prerequisites, alternatives, exceptions,
+   negation, quantities, time limits, and scope.
+6. Keep incompatible claims separate; do not silently choose one.
+7. Produce the minimum number of reconciled claims needed to support the
+   answer. Do not restate redundant or non-contributing claims.
+8. Keep each reconciled claim concise while preserving necessary conditions,
+   exceptions, alternatives, quantities, time limits, and scope.
+9. Do not answer the question.
+10. Return valid JSON only.
+
+Required structure:
+{
+  "reconciled_claims": [
+    {
+      "claim": "string",
+      "source_claim_ids": ["<claim_id>"]
+    }
+  ],
+  "conflict_note": "",
+  "evidence_status": "sufficient | partial | conflicting | insufficient"
+}
+\end{lstlisting}
+
+\subsection{Final-Generation Prompt}
+\label{app:prompt-answer}
+
+% Insert the complete final-generation prompt here.
+\begin{lstlisting}[style=promptstyle, caption={Prompt used in the experiment}]
+Generate an evidence-closed answer using only the supplied information.
+
+Rules:
+1. Do not use outside knowledge.
+2. Preserve relevant conditions, shared prerequisites, alternatives,
+   exceptions, negation, quantities, time limits, and scope.
+3. Ignore information that does not contribute to the question.
+4. If all answerable parts are supported, answer directly.
+5. If only part is supported, give a partial answer.
+6. If the answer requires an explicit condition or exception, give a
+   qualified answer.
+7. If no answer is supported, abstain.
+8. Return valid JSON only.
+
+Required structure:
+{
+  "decision": "full_answer | partial_answer | qualified_answer | abstain",
+  "answer": "string",
+  "support_ids": ["<supplied_id>"]
+}
+\end{lstlisting}
+
+\subsection{Evaluation-Judge Prompt}
+\label{app:prompt-judge}
+
+\begin{lstlisting}[style=promptstyle, caption={Prompt used in the experiment}]
+You are a strict, method-blind evaluator of evidence-grounded answers.
+
+You receive a question, fixed reference claims, gold evidence, distractor
+evidence, a system answer, a response decision, and pre-segmented system-answer
+components.
+
+CRITICAL EVIDENCE RULE
+Only GOLD EVIDENCE may support factual claims. Distractor evidence is shown only
+to identify distractor-induced errors. A statement supported only by a
+distractor is unsupported.
+
+TASKS
+1. Judge answer-level correctness as correct, partially_correct, or incorrect.
+2. Judge every fixed reference claim as covered_correctly, covered_incorrectly,
+   or not_covered.
+3. Judge every material factual system claim as supported, unsupported, or
+   contradicted relative to gold evidence only.
+4. Set has_unsupported_content true iff at least one material system claim is
+   unsupported or contradicted. Set has_contradiction true iff at least one is
+   contradicted.
+
+CORRECTNESS POLICY
+- correct: all stated material content is correct and not materially
+  unsupported or contradicted. Mere omission does not reduce correctness;
+  omission is measured by completeness.
+- partially_correct: contains useful correct information but also a local
+  factual error, wrong limitation, overgeneralisation, or material unsupported
+  addition.
+- incorrect: core conclusion/object/condition/relation is wrong; main content is
+  contradicted or distractor-driven; or the answer improperly refuses despite
+  sufficient complete gold evidence and gives no useful answer.
+
+REFERENCE COVERAGE POLICY
+A reference claim is covered_correctly only when the answer preserves its core
+fact, subject, object, necessary conditions, numbers/time limits, scope,
+modality, exceptions and negation. Semantic paraphrases are accepted.
+covered_incorrectly means the claim is recognisably attempted but materially
+altered. Otherwise use not_covered.
+
+SYSTEM CLAIM POLICY
+Evaluate material factual content only. Ignore headings, politeness, formatting,
+and purely rhetorical text. Conservative direct combination of compatible gold
+items is allowed; external knowledge is not. Missing conditions, expanded
+scope, invented time/cost/probability/causality, or distractor-only content is
+not supported.
+
+SYSTEM COMPONENTS
+Use the supplied components as the starting segmentation. Check the full answer
+so that no material factual statement is omitted. You may split a compound
+component or add an omitted material claim. Use stable IDs S1, S2, ... in answer
+order.
+
+CONSISTENCY
+- correct + material unsupported content is normally invalid.
+- incorrect + all material claims supported requires a clear rationale such as
+  wrong-question response, wholly inappropriate refusal/decision, or another
+  answer-level failure.
+- complete coverage + incorrect is possible only if the answer also adds a key
+  error; explain it.
+Return exactly one JSON object using this shape and field names:
+{
+  "correctness": {"label": "correct|partially_correct|incorrect", "rationale": "..."},
+  "reference_claim_coverage": [
+    {"claim_id": "R1", "status": "covered_correctly|covered_incorrectly|not_covered", "rationale": "..."}
+  ],
+  "system_claims": [
+    {"claim_id": "S1", "text": "...", "status": "supported|unsupported|contradicted", "gold_evidence_ids": [], "matched_distractor_ids": [], "rationale": "..."}
+  ],
+  "has_unsupported_content": false,
+  "has_contradiction": false
+}
+Do not replace objects with strings or lists with dictionaries. Use `status`, not `support`.
+Return only the structured result.
+\end{lstlisting}
